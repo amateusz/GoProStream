@@ -33,7 +33,7 @@ import re
 import http
 
 
-class GoPro_Helpers():
+class GoPro_Utils():
     """
     Some (?) cameras need a refresh packet, otherwise they will shutdown the live stream (being a preview really)
     based on: https://gist.github.com/3v1n0/38bcd4f7f0cb3c279bad#file-hero4-udp-keep-alive-send-py
@@ -42,8 +42,8 @@ class GoPro_Helpers():
     KEEP_ALIVE_COMMAND = 2
     GOPRO_MAC = 'DEADBEEF0000'
 
-    def __init__(self, ip, port):
-        self.target = (ip, port)
+    def __init__(self, ip, udp_port):
+        self.target = (ip, udp_port)
         self.message = __class__.get_command_msg(__class__.KEEP_ALIVE_COMMAND)
         if sys.version_info.major >= 3:
             self.message = bytes(self.message, "utf-8")
@@ -65,8 +65,8 @@ class GoPro_Helpers():
         if len(__class__.GOPRO_MAC) == 12:
             macaddress = __class__.GOPRO_MAC
         elif len(__class__.GOPRO_MAC) == 12 + 5:
-            sep = __class__.GOPRO_MAC[2] # determine what separator is used
-            macaddress = __class__.GOPRO_MAC.replace(sep, '') # purge them
+            sep = __class__.GOPRO_MAC[2]  # determine what separator is used
+            macaddress = __class__.GOPRO_MAC.replace(sep, '')  # purge them
         else:
             raise ValueError('Incorrect MAC Address Format')
         # Pad the sync stream
@@ -93,6 +93,7 @@ SAVE_LOCATION = "/tmp/"
 ## for wake_on_lan
 GOPRO_IP = '10.5.5.9'
 
+
 def detect_model(firmware_string):
     """
     Tries to determine camera model from firmware string
@@ -110,9 +111,11 @@ def detect_model(firmware_string):
     return model
 
 
+UDP_IP = GOPRO_IP
+UDP_PORT = 8554
+
 def gopro_live():
-    UDP_IP = GOPRO_IP
-    UDP_PORT = 8554
+
 
     PRE_UDP_URL = f"http://{GOPRO_IP}:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
     try:
@@ -195,6 +198,8 @@ def quit_gopro(signal, frame):
 
 
 if __name__ == '__main__':
-    wake_on_lan(GOPRO_MAC)
+    gopro_utils = GoPro_Utils(UDP_PORT, UDP_PORT)
+    gopro_utils.wake_on_lan()
+
     signal.signal(signal.SIGINT, quit_gopro)
     gopro_live()
