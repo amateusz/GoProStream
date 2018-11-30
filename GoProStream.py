@@ -77,7 +77,7 @@ def gopro_live():
     except http.client.BadStatusLine:
         response = urlopen('http://10.5.5.9/camera/cv').read().decode('utf-8')
 
-    if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "H18" or model == "HX" or model == "HD6":
+    if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "H18" or "HX" in model or model == "HD6":
         print("branch HD4")
         print(jsondata["info"]["model_name"] + "\n" + jsondata["info"]["firmware_version"])
         ##
