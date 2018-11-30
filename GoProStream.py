@@ -54,6 +54,10 @@ GOPRO_MAC = 'DEADBEEF0000'
 
 
 def detect_model(firmware_string):
+    if "Hero3" in firmware_string or "HERO3+" in firmware_string:
+        # HERO3 branch
+        return firmware_string
+
     model, *numbers = firmware_string.split('.')
     if len(numbers) == 3:
         model = '.'.join([model, numbers[0]])
