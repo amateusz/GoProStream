@@ -58,7 +58,7 @@ class GoPro_Utils():
     def get_command_msg(command):
         return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, command, 0)
 
-    def wake_on_lan():
+    def wake_on_lan(self):
         """switches on remote computers using WoL"""
 
         # check macaddress format and try to compensate
@@ -90,8 +90,9 @@ SAVE = False
 SAVE_FILENAME = "goprofeed3"
 SAVE_FORMAT = "ts"
 SAVE_LOCATION = "/tmp/"
-## for wake_on_lan
-GOPRO_IP = '10.5.5.9'
+## for everything
+# GOPRO_IP = '10.5.5.9'
+GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
 
 
 def detect_model(firmware_string):
@@ -114,10 +115,8 @@ def detect_model(firmware_string):
 UDP_IP = GOPRO_IP
 UDP_PORT = 8554
 
+
 def gopro_live():
-
-
-    PRE_UDP_URL = f"http://{GOPRO_IP}:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
     try:
         # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
         response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
@@ -180,8 +179,10 @@ def gopro_live():
             pass
 
     else:
-        print("branch hero3 " + response)
-        if "Hero3" in response or "HERO3+" in response:
+        print("branch hero3 " + model)
+        PRE_UDP_URL = f"http://{GOPRO_IP}:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
+
+        if "Hero3" in model or "HERO3+" in model:
             print("branch hero3")
             PASSWORD = urlopen(f"http://{GOPRO_IP}/bacpac/sd").read()
             print("HERO3/3+/2 camera")
