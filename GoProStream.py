@@ -54,8 +54,8 @@ class Keep_Stream_Alive():
         sleep(__class__.period / 1000)
 
     @staticmethod
-    def get_command_msg():
-        return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, 2, 0)
+    def get_command_msg(command):
+        return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, command, 0)
 
 
 ## Parameters:
