@@ -95,15 +95,15 @@ def gopro_live():
     UDP_IP = GOPRO_IP
     UDP_PORT = 8554
 
-    URL = "http://10.5.5.9:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
+    PRE_UDP_URL = f"http://{GOPRO_IP}:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
     try:
         # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
-        response_raw = urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
+        response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
         jsondata = json.loads(response_raw)
         firmware_string = jsondata["info"]["firmware_version"]
         model = detect_model(firmware_string)
     except http.client.BadStatusLine:
-        response = urlopen('http://10.5.5.9/camera/cv').read().decode('utf-8')
+        response = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
 
     if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "H18" or "HX" in model or model == "HD6":
         print("branch HD4")
@@ -111,12 +111,11 @@ def gopro_live():
         ##
         ## HTTP GETs the URL that tells the GoPro to start streaming.
         ##
-        urlopen("http://10.5.5.9/gp/gpControl/execute?p1=gpStream&a1=proto_v2&c1=restart").read()
+        urlopen(f"http://{GOPRO_IP}/gp/gpControl/execute?p1=gpStream&a1=proto_v2&c1=restart").read()
         if RECORD:
-            urlopen("http://10.5.5.9/gp/gpControl/command/shutter?p=1").read()
+            urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=1").read()
         print("UDP target IP:", UDP_IP)
         print("UDP target port:", UDP_PORT)
-        print("message:", KEEP_ALIVE_MESSAGE)
         print("Recording on camera: " + str(RECORD))
 
         ## GoPro HERO4 Session needs status 31 to be greater or equal than 1 in order to start the live feed.
@@ -124,7 +123,7 @@ def gopro_live():
         if "HX" in model:
             connectedStatus = False
             while connectedStatus == False:
-                req = urlopen("http://10.5.5.9/gp/gpControl/status")
+                req = urlopen(f"http://{GOPRO_IP}/gp/gpControl/status")
                 data = req.read()
                 encoding = req.info().get_content_charset('utf-8')
                 json_data = json.loads(data.decode(encoding))
@@ -162,17 +161,17 @@ def gopro_live():
         print("branch hero3 " + response)
         if "Hero3" in response or "HERO3+" in response:
             print("branch hero3")
-            PASSWORD = urlopen("http://10.5.5.9/bacpac/sd").read()
+            PASSWORD = urlopen(f"http://{GOPRO_IP}/bacpac/sd").read()
             print("HERO3/3+/2 camera")
             Password = str(PASSWORD, 'utf-8')
             text = re.sub(r'\W+', '', Password)
-            urlopen("http://10.5.5.9/camera/PV?t=" + text + "&p=%02")
-            subprocess.Popen("ffplay " + URL, shell=True)
+            urlopen(f"http://{GOPRO_IP}/camera/PV?t=" + text + "&p=%02")
+            subprocess.Popen("ffplay " + PRE_UDP_URL, shell=True)
 
 
 def quit_gopro(signal, frame):
     if RECORD:
-        urlopen("http://10.5.5.9/gp/gpControl/command/shutter?p=0").read()
+        urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=0").read()
     sys.exit(0)
 
 
