@@ -33,29 +33,50 @@ import re
 import http
 
 
-class Keep_Stream_Alive():
+class GoPro_Helpers():
     """
     Some (?) cameras need a refresh packet, otherwise they will shutdown the live stream (being a preview really)
     based on: https://gist.github.com/3v1n0/38bcd4f7f0cb3c279bad#file-hero4-udp-keep-alive-send-py
     """
-    period = 2500  # ms
-    command = 2
+    KEEP_ALIVE_PERIOD = 2500  # ms
+    KEEP_ALIVE_COMMAND = 2
+    GOPRO_MAC = 'DEADBEEF0000'
 
     def __init__(self, ip, port):
         self.target = (ip, port)
-        self.message = __class__.get_command_msg(__class__.command)
+        self.message = __class__.get_command_msg(__class__.KEEP_ALIVE_COMMAND)
         if sys.version_info.major >= 3:
             self.message = bytes(self.message, "utf-8")
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def send(self):
+    def keep_alive(self):
         """send UDP packet mimicking the original app"""
         self.sock.sendto(self.message, self.target)
-        sleep(__class__.period / 1000)
+        sleep(__class__.KEEP_ALIVE_PERIOD / 1000)
 
     @staticmethod
     def get_command_msg(command):
         return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, command, 0)
+
+    def wake_on_lan():
+        """switches on remote computers using WoL"""
+
+        # check macaddress format and try to compensate
+        if len(__class__.GOPRO_MAC) == 12:
+            macaddress = __class__.GOPRO_MAC
+        elif len(__class__.GOPRO_MAC) == 12 + 5:
+            sep = __class__.GOPRO_MAC[2] # determine what separator is used
+            macaddress = __class__.GOPRO_MAC.replace(sep, '') # purge them
+        else:
+            raise ValueError('Incorrect MAC Address Format')
+        # Pad the sync stream
+        data = ''.join(['FFFFFFFFFFFF', macaddress * 20])
+        send_data = bytes.fromhex(data)
+
+        # Broadcast to lan
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.sendto(send_data, (GOPRO_IP, 9))
 
 
 ## Parameters:
@@ -71,8 +92,6 @@ SAVE_FORMAT = "ts"
 SAVE_LOCATION = "/tmp/"
 ## for wake_on_lan
 GOPRO_IP = '10.5.5.9'
-GOPRO_MAC = 'DEADBEEF0000'
-
 
 def detect_model(firmware_string):
     """
@@ -173,27 +192,6 @@ def quit_gopro(signal, frame):
     if RECORD:
         urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=0").read()
     sys.exit(0)
-
-
-def wake_on_lan(macaddress):
-    """switches on remote computers using WOL. """
-
-    # check macaddress format and try to compensate
-    if len(macaddress) == 12:
-        pass
-    elif len(macaddress) == 12 + 5:
-        sep = macaddress[2]
-        macaddress = macaddress.replace(sep, '')
-    else:
-        raise ValueError('Incorrect MAC Address Format')
-    # Pad the sync stream
-    data = ''.join(['FFFFFFFFFFFF', macaddress * 20])
-    send_data = bytes.fromhex(data)
-
-    # Broadcast to lan
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.sendto(send_data, (GOPRO_IP, 9))
 
 
 if __name__ == '__main__':
