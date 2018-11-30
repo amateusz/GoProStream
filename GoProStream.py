@@ -33,8 +33,29 @@ import re
 import http
 
 
-def get_command_msg(id):
-    return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, 2, 0)
+class Keep_Stream_Alive():
+    """
+    Some (?) cameras need a refresh packet, otherwise they will shutdown the live stream (being a preview really)
+    based on: https://gist.github.com/3v1n0/38bcd4f7f0cb3c279bad#file-hero4-udp-keep-alive-send-py
+    """
+    period = 2500  # ms
+    command = 2
+
+    def __init__(self, ip, port):
+        self.target = (ip, port)
+        self.message = __class__.get_command_msg(__class__.command)
+        if sys.version_info.major >= 3:
+            self.message = bytes(self.message, "utf-8")
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def send(self):
+        """send UDP packet mimicking the original app"""
+        self.sock.sendto(self.message, self.target)
+        sleep(__class__.period / 1000)
+
+    @staticmethod
+    def get_command_msg():
+        return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, 2, 0)
 
 
 ## Parameters:
@@ -54,6 +75,12 @@ GOPRO_MAC = 'DEADBEEF0000'
 
 
 def detect_model(firmware_string):
+    """
+    Tries to determine camera model from firmware string
+    @TODO: return a model *number*
+    :param firmware_string: obtained from JSON from http://10.5.5.9/gp/gpControl endpoint
+    :return: first few characters of a firmware string. e.g. HD4, HD3.22; it's messy. In case of HERO3/+ returns the whole firmware_string for compatibility
+    """
     if "Hero3" in firmware_string or "HERO3+" in firmware_string:
         # HERO3 branch
         return firmware_string
@@ -67,11 +94,8 @@ def detect_model(firmware_string):
 def gopro_live():
     UDP_IP = GOPRO_IP
     UDP_PORT = 8554
-    KEEP_ALIVE_PERIOD = 2500
-    KEEP_ALIVE_CMD = 2
 
-    MESSAGE = get_command_msg(KEEP_ALIVE_CMD)
-    URL = "http://10.5.5.9:8080/live/amba.m3u8"
+    URL = "http://10.5.5.9:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
     try:
         # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
         response_raw = urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
@@ -92,7 +116,7 @@ def gopro_live():
             urlopen("http://10.5.5.9/gp/gpControl/command/shutter?p=1").read()
         print("UDP target IP:", UDP_IP)
         print("UDP target port:", UDP_PORT)
-        print("message:", MESSAGE)
+        print("message:", KEEP_ALIVE_MESSAGE)
         print("Recording on camera: " + str(RECORD))
 
         ## GoPro HERO4 Session needs status 31 to be greater or equal than 1 in order to start the live feed.
@@ -129,13 +153,11 @@ def gopro_live():
             subprocess.Popen(
                 "ffmpeg -i 'udp://:10.5.5.100:8554' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
                 shell=True)
-        if sys.version_info.major >= 3:
-            MESSAGE = bytes(MESSAGE, "utf-8")
+
         print("Press ctrl+C to quit this application.\n")
         while True:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
-            sleep(KEEP_ALIVE_PERIOD / 1000)
+            pass
+
     else:
         print("branch hero3 " + response)
         if "Hero3" in response or "HERO3+" in response:
