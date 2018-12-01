@@ -81,12 +81,14 @@ class GoPro_Utils():
 
 ## Parameters:
 ##
-VERBOSE = True
+VERBOSE = False
 ## Sends Record command to GoPro Camera, must be in Video mode!
 RECORD = False
-##
 ## Saves the feed to a custom location
 SAVE = False
+## Open the stream and shows the preview
+PREVIEW = False
+
 SAVE_FILENAME = "goprofeed3"
 SAVE_FORMAT = "ts"
 SAVE_LOCATION = "/tmp/"
@@ -126,7 +128,7 @@ def gopro_live():
     except http.client.BadStatusLine:
         response = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
 
-    if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "H18" or "HX" in model or model == "HD6":
+    if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "HD6" or model == "H18" or "HX" in model:
         print("branch HD4")
         print(jsondata["info"]["model_name"] + "\n" + jsondata["info"]["firmware_version"])
         ##
@@ -134,6 +136,7 @@ def gopro_live():
         ##
         urlopen(f"http://{GOPRO_IP}/gp/gpControl/execute?p1=gpStream&a1=proto_v2&c1=restart").read()
         if RECORD:
+            # send /record/ command. saves the file locally onto the camera
             urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=1").read()
         print("UDP target IP:", UDP_IP)
         print("UDP target port:", UDP_PORT)
@@ -157,11 +160,7 @@ def gopro_live():
         loglevel_verbose = ""
         if VERBOSE == False:
             loglevel_verbose = "-loglevel panic"
-        if SAVE == False:
-            subprocess.Popen(
-                f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
-                shell=True)
-        else:
+        if SAVE == True:
             if SAVE_FORMAT == "ts":
                 TS_PARAMS = " -acodec copy -vcodec copy "
             else:
@@ -173,10 +172,15 @@ def gopro_live():
             subprocess.Popen(
                 f"ffmpeg -i 'udp://@:{UDP_PORT}' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
                 shell=True)
+        else:
+            if PREVIEW:
+                subprocess.Popen(
+                    f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
+                    shell=True)
 
         print("Press ctrl+C to quit this application.\n")
         while True:
-            pass
+            gopro_utils.keep_alive()
 
     else:
         print("branch hero3 " + model)
@@ -199,7 +203,7 @@ def quit_gopro(signal, frame):
 
 
 if __name__ == '__main__':
-    gopro_utils = GoPro_Utils(UDP_PORT, UDP_PORT)
+    gopro_utils = GoPro_Utils(UDP_IP, UDP_PORT)
     gopro_utils.wake_on_lan()
 
     signal.signal(signal.SIGINT, quit_gopro)
