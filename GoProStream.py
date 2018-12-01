@@ -81,7 +81,7 @@ class GoPro_Utils():
 
 ## Parameters:
 ##
-VERBOSE = False
+VERBOSE = True
 ## Sends Record command to GoPro Camera, must be in Video mode!
 RECORD = False
 ##
@@ -159,7 +159,7 @@ def gopro_live():
             loglevel_verbose = "-loglevel panic"
         if SAVE == False:
             subprocess.Popen(
-                "ffplay " + loglevel_verbose + " -fflags nobuffer -f:v mpegts -probesize 8192 udp://10.5.5.100:8554",
+                f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
                 shell=True)
         else:
             if SAVE_FORMAT == "ts":
@@ -171,7 +171,7 @@ def gopro_live():
             print("Recording stored in: " + SAVELOCATION)
             print("Note: Preview is not available when saving the stream.")
             subprocess.Popen(
-                "ffmpeg -i 'udp://:10.5.5.100:8554' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
+                f"ffmpeg -i 'udp://@:{UDP_PORT}' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
                 shell=True)
 
         print("Press ctrl+C to quit this application.\n")
