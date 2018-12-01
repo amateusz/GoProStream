@@ -19,18 +19,26 @@ import socket
 
 # from urllib.request import urlopen --> module import error
 # https://stackoverflow.com/questions/2792650/python3-error-import-error-no-module-name-urllib2
-try:
-    # For Python 3.0 and later
-    from urllib.request import urlopen
-except ImportError:
-    # Fall back to Python 2's urllib2
-    from urllib2 import urlopen
+
+# try:
+# For Python 3.0 and later
+from urllib.request import urlopen
+# except ImportError:
+# Fall back to Python 2's urllib2
+# from urllib2 import urlopen
+
 import subprocess
 from time import sleep
 import signal
 import json
 import re
 import http
+
+# GOPRO_IP = '10.5.5.9'
+GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
+
+UDP_IP = GOPRO_IP
+UDP_PORT = 8554
 
 
 class GoPro_Utils():
@@ -92,119 +100,117 @@ PREVIEW = False
 SAVE_FILENAME = "goprofeed3"
 SAVE_FORMAT = "ts"
 SAVE_LOCATION = "/tmp/"
-## for everything
-# GOPRO_IP = '10.5.5.9'
-GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
 
 
-def detect_model(firmware_string):
-    """
-    Tries to determine camera model from firmware string
-    @TODO: return a model *number*
-    :param firmware_string: obtained from JSON from http://10.5.5.9/gp/gpControl endpoint
-    :return: first few characters of a firmware string. e.g. HD4, HD3.22; it's messy. In case of HERO3/+ returns the whole firmware_string for compatibility
-    """
-    if "Hero3" in firmware_string or "HERO3+" in firmware_string:
-        # HERO3 branch
-        return firmware_string
+class GoPro():
 
-    model, *numbers = firmware_string.split('.')
-    if len(numbers) == 3:
-        model = '.'.join([model, numbers[0]])
-    return model
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.quit)
+        self.init_stream()
 
+    def detect_model(self, firmware_string):
+        """
+        Tries to determine camera model from firmware string
+        @TODO: return a model *number*
+        :param firmware_string: obtained from JSON from http://10.5.5.9/gp/gpControl endpoint
+        :return: first few characters of a firmware string. e.g. HD4, HD3.22; it's messy. In case of HERO3/+ returns the whole firmware_string for compatibility
+        """
+        if "Hero3" in firmware_string or "HERO3+" in firmware_string:
+            # HERO3 branch
+            return firmware_string
 
-UDP_IP = GOPRO_IP
-UDP_PORT = 8554
+        model, *numbers = firmware_string.split('.')
+        if len(numbers) == 3:
+            model = '.'.join([model, numbers[0]])
+        return model
 
-
-def gopro_live():
-    try:
-        # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
-        response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
-        jsondata = json.loads(response_raw)
-        firmware_string = jsondata["info"]["firmware_version"]
-        model = detect_model(firmware_string)
-    except http.client.BadStatusLine:
-        response = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
-
-    if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "HD6" or model == "H18" or "HX" in model:
-        print("branch HD4")
-        print(jsondata["info"]["model_name"] + "\n" + jsondata["info"]["firmware_version"])
-        ##
-        ## HTTP GETs the URL that tells the GoPro to start streaming.
-        ##
-        urlopen(f"http://{GOPRO_IP}/gp/gpControl/execute?p1=gpStream&a1=proto_v2&c1=restart").read()
-        if RECORD:
-            # send /record/ command. saves the file locally onto the camera
-            urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=1").read()
-        print("UDP target IP:", UDP_IP)
-        print("UDP target port:", UDP_PORT)
-        print("Recording on camera: " + str(RECORD))
-
-        ## GoPro HERO4 Session needs status 31 to be greater or equal than 1 in order to start the live feed.
-        ## https: // github.com / KonradIT / goprowifihack / blob / c4ecccc74b5a23ec13f2e2d214bb2ebbbda58f3c / HERO4 / HERO4 - Session.md
-        if "HX" in model:
-            connectedStatus = False
-            while connectedStatus == False:
-                req = urlopen(f"http://{GOPRO_IP}/gp/gpControl/status")
-                data = req.read()
-                encoding = req.info().get_content_charset('utf-8')
-                json_data = json.loads(data.decode(encoding))
-                if json_data["status"]["31"] >= 1:
-                    connectedStatus = True
-        ##
-        ## Opens the stream over udp in ffplay. This is a known working configuration by Reddit user hoppjerka:
-        ## https://www.reddit.com/r/gopro/comments/2md8hm/how_to_livestream_from_a_gopro_hero4/cr1b193
-        ##
-        loglevel_verbose = ""
-        if VERBOSE == False:
-            loglevel_verbose = "-loglevel panic"
-        if SAVE == True:
-            if SAVE_FORMAT == "ts":
-                TS_PARAMS = " -acodec copy -vcodec copy "
-            else:
-                TS_PARAMS = ""
-            SAVELOCATION = SAVE_LOCATION + SAVE_FILENAME + "." + SAVE_FORMAT
-            print("Recording locally: " + str(SAVE))
-            print("Recording stored in: " + SAVELOCATION)
-            print("Note: Preview is not available when saving the stream.")
-            subprocess.Popen(
-                f"ffmpeg -i 'udp://@:{UDP_PORT}' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
-                shell=True)
-        else:
-            if PREVIEW:
-                subprocess.Popen(
-                    f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
-                    shell=True)
-
+    def run(self):
         print("Press ctrl+C to quit this application.\n")
         while True:
             gopro_utils.keep_alive()
 
-    else:
-        print("branch hero3 " + model)
-        PRE_UDP_URL = f"http://{GOPRO_IP}:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
+    def init_stream(self):
+        try:
+            # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
+            response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
+            jsondata = json.loads(response_raw)
+            firmware_string = jsondata["info"]["firmware_version"]
+            model = self.detect_model(firmware_string)
+        except http.client.BadStatusLine:
+            response = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
 
-        if "Hero3" in model or "HERO3+" in model:
-            print("branch hero3")
-            PASSWORD = urlopen(f"http://{GOPRO_IP}/bacpac/sd").read()
-            print("HERO3/3+/2 camera")
-            Password = str(PASSWORD, 'utf-8')
-            text = re.sub(r'\W+', '', Password)
-            urlopen(f"http://{GOPRO_IP}/camera/PV?t=" + text + "&p=%02")
-            subprocess.Popen("ffplay " + PRE_UDP_URL, shell=True)
+        if model == "HD4" or model == "HD3.22" or model == "HD5" or model == "HD6" or model == "H18" or "HX" in model:
+            print("branch HD4")
+            print(jsondata["info"]["model_name"] + "\n" + jsondata["info"]["firmware_version"])
+            ##
+            ## HTTP GETs the URL that tells the GoPro to start streaming.
+            ##
+            urlopen(f"http://{GOPRO_IP}/gp/gpControl/execute?p1=gpStream&a1=proto_v2&c1=restart").read()
+            if RECORD:
+                # send /record/ command. saves the file locally onto the camera
+                urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=1").read()
+            print("UDP target IP:", UDP_IP)
+            print("UDP target port:", UDP_PORT)
+            print("Recording on camera: " + str(RECORD))
 
+            ## GoPro HERO4 Session needs status 31 to be greater or equal than 1 in order to start the live feed.
+            ## https: // github.com / KonradIT / goprowifihack / blob / c4ecccc74b5a23ec13f2e2d214bb2ebbbda58f3c / HERO4 / HERO4 - Session.md
+            if "HX" in model:
+                connectedStatus = False
+                while connectedStatus == False:
+                    req = urlopen(f"http://{GOPRO_IP}/gp/gpControl/status")
+                    data = req.read()
+                    encoding = req.info().get_content_charset('utf-8')
+                    json_data = json.loads(data.decode(encoding))
+                    if json_data["status"]["31"] >= 1:
+                        connectedStatus = True
+            ##
+            ## Opens the stream over udp in ffplay. This is a known working configuration by Reddit user hoppjerka:
+            ## https://www.reddit.com/r/gopro/comments/2md8hm/how_to_livestream_from_a_gopro_hero4/cr1b193
+            ##
+            loglevel_verbose = ""
+            if VERBOSE == False:
+                loglevel_verbose = "-loglevel panic"
+            if SAVE == True:
+                if SAVE_FORMAT == "ts":
+                    TS_PARAMS = " -acodec copy -vcodec copy "
+                else:
+                    TS_PARAMS = ""
+                SAVELOCATION = SAVE_LOCATION + SAVE_FILENAME + "." + SAVE_FORMAT
+                print("Recording locally: " + str(SAVE))
+                print("Recording stored in: " + SAVELOCATION)
+                print("Note: Preview is not available when saving the stream.")
+                subprocess.Popen(
+                    f"ffmpeg -i 'udp://@:{UDP_PORT}' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
+                    shell=True)
+            else:
+                if PREVIEW:
+                    subprocess.Popen(
+                        f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
+                        shell=True)
 
-def quit_gopro(signal, frame):
-    if RECORD:
-        urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=0").read()
-    sys.exit(0)
+        else:
+            print("branch hero3 " + model)
+            PRE_UDP_URL = f"http://{GOPRO_IP}:8080/live/amba.m3u8"  # only for pre-UDP HERO2, HERO3 and HERO3+
+
+            if "Hero3" in model or "HERO3+" in model:
+                print("branch hero3")
+                PASSWORD = urlopen(f"http://{GOPRO_IP}/bacpac/sd").read()
+                print("HERO3/3+/2 camera")
+                Password = str(PASSWORD, 'utf-8')
+                text = re.sub(r'\W+', '', Password)
+                urlopen(f"http://{GOPRO_IP}/camera/PV?t=" + text + "&p=%02")
+                subprocess.Popen("ffplay " + PRE_UDP_URL, shell=True)
+
+    def quit(self, signal, frame):
+        if RECORD:
+            # stop the shutter when closing
+            urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=0").read()
+        sys.exit(0)
 
 
 if __name__ == '__main__':
     gopro_utils = GoPro_Utils(UDP_IP, UDP_PORT)
     gopro_utils.wake_on_lan()
-
-    signal.signal(signal.SIGINT, quit_gopro)
-    gopro_live()
+    gopro = GoPro()
+    gopro.run()
