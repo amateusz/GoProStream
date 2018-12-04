@@ -118,11 +118,13 @@ class GoPro():
                 shell=True)
         else:
             if PREVIEW:
-                print(f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}")
-
                 subprocess.Popen(
                     f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
                     shell=True)
+            '''
+            the meaning of above `@` is as explained in https://superuser.com/questions/870831/what-does-the-at-symbol-with-ips-mean-in-ffmpeg-and-vlc
+            It turns of our UDP is multicast..or unicast, therefore where udp://x@y:8554 y makes no difference. x is our IP, most likely 10.5.5.100
+            '''
 
         print("Press ctrl+C to quit this application.\n")
 
