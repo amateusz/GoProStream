@@ -66,35 +66,34 @@ class GoPro():
         self.IP, self.UDP_port = (ip, udp_port)
         self.setup_keepalive()
         self.UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.detect_model()
+        self.model_id, self.model_name = self.detect_model()
         self.init_stream()
 
-    def detect_model(self):
+    def detect_model(self, firmware_string):
         """
         Tries to determine camera model from firmware string
-        @TODO: return a model *number*
         :param firmware_string: obtained from JSON from http://10.5.5.9/gp/gpControl endpoint
-        :return: first few characters of a firmware string. e.g. HD4, HD3.22; it's messy. In case of HERO3/+ returns the whole firmware_string for compatibility
+        :return: a tuple with first few characters of a firmware string. e.g. HD4, HD3.22 and also the nice model name e.g. HERO 6 Session; it's messy. In case of HERO3/+ returns the whole firmware_string for compatibility
         """
-
-        try:
-            # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
-            response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
-            jsondata = json.loads(response_raw)
-            firmware_string = jsondata["info"]["firmware_version"]
-        except http.client.BadStatusLine:
-            firmware_string = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
+        if not firmware_string:
+            try:
+                # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
+                response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
+                jsondata = json.loads(response_raw)
+                firmware_string = jsondata["info"]["firmware_version"]
+            except http.client.BadStatusLine:
+                firmware_string = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
 
         self.model_name = jsondata["info"]["model_name"]
 
         if "Hero3" in firmware_string or "HERO3+" in firmware_string:
             # HERO3 branch
-            self.model_id = firmware_string
+            model_id = firmware_string
         else:
             model_id, *numbers = firmware_string.split('.')
             if len(numbers) == 3:
                 model_id = '.'.join([model_id, numbers[0]])
-            self.model_id = model_id
+        return (model_id, model_name)
 
     def open_stream(self):
         ##
