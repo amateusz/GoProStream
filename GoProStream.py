@@ -40,53 +40,6 @@ GOPRO_IP = '10.5.5.9'
 UDP_IP = GOPRO_IP
 UDP_PORT = 8554
 
-
-class GoPro_Utils():
-    """
-    Some (?) cameras need a refresh packet, otherwise they will shutdown the live stream (being a preview really)
-    based on: https://gist.github.com/3v1n0/38bcd4f7f0cb3c279bad#file-hero4-udp-keep-alive-send-py
-    """
-    KEEP_ALIVE_PERIOD = 2500  # ms
-    KEEP_ALIVE_COMMAND = 2
-    GOPRO_MAC = 'DEADBEEF0000'
-
-    def __init__(self, ip, udp_port):
-        self.target = (ip, udp_port)
-        self.message = __class__.get_command_msg(__class__.KEEP_ALIVE_COMMAND)
-        if sys.version_info.major >= 3:
-            self.message = bytes(self.message, "utf-8")
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    def keep_alive(self):
-        """send UDP packet mimicking the original app"""
-        self.sock.sendto(self.message, self.target)
-        sleep(__class__.KEEP_ALIVE_PERIOD / 1000)
-
-    @staticmethod
-    def get_command_msg(command):
-        return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, command, 0)
-
-    def wake_on_lan(self):
-        """switches on remote computers using WoL"""
-
-        # check macaddress format and try to compensate
-        if len(__class__.GOPRO_MAC) == 12:
-            macaddress = __class__.GOPRO_MAC
-        elif len(__class__.GOPRO_MAC) == 12 + 5:
-            sep = __class__.GOPRO_MAC[2]  # determine what separator is used
-            macaddress = __class__.GOPRO_MAC.replace(sep, '')  # purge them
-        else:
-            raise ValueError('Incorrect MAC Address Format')
-        # Pad the sync stream
-        data = ''.join(['FFFFFFFFFFFF', macaddress * 20])
-        send_data = bytes.fromhex(data)
-
-        # Broadcast to lan
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.sendto(send_data, (GOPRO_IP, 9))
-
-
 ## Parameters:
 ##
 VERBOSE = True
@@ -103,9 +56,16 @@ SAVE_LOCATION = "/tmp/"
 
 
 class GoPro():
+    KEEP_ALIVE_PERIOD = 2500  # ms
+    KEEP_ALIVE_COMMAND = 2
+    GOPRO_MAC = 'DEADBEEF0000'
 
-    def __init__(self):
+    def __init__(self, ip, udp_port):
         signal.signal(signal.SIGINT, self.quit)
+
+        self.IP, self.UDP_port = (ip, udp_port)
+        self.setup_keepalive()
+        self.UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.detect_model()
         self.init_stream()
 
@@ -136,7 +96,7 @@ class GoPro():
                 model_id = '.'.join([model_id, numbers[0]])
             self.model_id = model_id
 
-    def run(self):
+    def open_stream(self):
         ##
         ## Opens the stream over udp in ffplay. This is a known working configuration by Reddit user hoppjerka:
         ## https://www.reddit.com/r/gopro/comments/2md8hm/how_to_livestream_from_a_gopro_hero4/cr1b193
@@ -165,8 +125,6 @@ class GoPro():
                     shell=True)
 
         print("Press ctrl+C to quit this application.\n")
-        while True:
-            gopro_utils.keep_alive()
 
     def init_stream(self):
         if self.model_id == "HD4" or self.model_id == "HD3.22" or self.model_id == "HD5" or self.model_id == "HD6" or self.model_id == "H18" or "HX" in self.model_id:
@@ -208,6 +166,44 @@ class GoPro():
                 urlopen(f"http://{GOPRO_IP}/camera/PV?t=" + text + "&p=%02")
                 subprocess.Popen("ffplay " + PRE_UDP_URL, shell=True)
 
+    @staticmethod
+    def get_command_msg(command):
+        return "_GPHD_:%u:%u:%d:%1lf\n" % (0, 0, command, 0)
+
+    def setup_keepalive(self):
+        self.keep_alive_message = __class__.get_command_msg(__class__.KEEP_ALIVE_COMMAND)
+        if sys.version_info.major >= 3:
+            self.keep_alive_message = bytes(self.keep_alive_message, "utf-8")
+
+    def keep_alive(self):
+        """
+        Some (?) cameras need a refresh packet, otherwise they will shutdown the live stream (being a preview really)
+        based on: https://gist.github.com/3v1n0/38bcd4f7f0cb3c279bad#file-hero4-udp-keep-alive-send-py
+        send UDP packet mimicking the original app
+        """
+        self.UDP_socket.sendto(self.keep_alive_message, (self.IP, self.UDP_port))
+        sleep(__class__.KEEP_ALIVE_PERIOD / 1000)
+
+    def wake_on_lan(self):
+        """switches on remote computers using WoL"""
+
+        # check macaddress format and try to compensate
+        if len(__class__.GOPRO_MAC) == 12:
+            macaddress = __class__.GOPRO_MAC
+        elif len(__class__.GOPRO_MAC) == 12 + 5:
+            sep = __class__.GOPRO_MAC[2]  # determine what separator is used
+            macaddress = __class__.GOPRO_MAC.replace(sep, '')  # purge them
+        else:
+            raise ValueError('Incorrect MAC Address Format')
+        # Pad the sync stream
+        data = ''.join(['FFFFFFFFFFFF', macaddress * 20])
+        send_data = bytes.fromhex(data)
+
+        # Broadcast to lan
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.sendto(send_data, (GOPRO_IP, 9))
+
     def quit(self, signal, frame):
         if RECORD:
             # stop the shutter when closing
@@ -216,7 +212,8 @@ class GoPro():
 
 
 if __name__ == '__main__':
-    gopro_utils = GoPro_Utils(UDP_IP, UDP_PORT)
-    gopro_utils.wake_on_lan()
-    gopro = GoPro()
-    gopro.run()
+    gopro = GoPro(UDP_IP, UDP_PORT)
+    gopro.wake_on_lan()
+    gopro.open_stream()
+    while True:
+        gopro.keep_alive()
