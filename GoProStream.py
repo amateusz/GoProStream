@@ -34,8 +34,8 @@ import json
 import re
 import http
 
-# GOPRO_IP = '10.5.5.9'
-GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
+GOPRO_IP = '10.5.5.9'
+# GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
 
 UDP_IP = GOPRO_IP
 UDP_PORT = 8554
@@ -172,7 +172,6 @@ class GoPro():
             if "HX" in self.model_id:
                 connectedStatus = False
                 while connectedStatus == False:
-                    self.update_status()
                     if self.get_status_json()["status"]["31"] >= 1:
                         connectedStatus = True
 
@@ -205,7 +204,6 @@ class GoPro():
         send UDP packet mimicking the original app
         """
         self.UDP_socket.sendto(self.keep_alive_message, (self.IP, self.UDP_port))
-        sleep(__class__.KEEP_ALIVE_PERIOD / 1000)
 
     def wake_on_lan(self):
         """switches on remote computers using WoL"""
@@ -241,7 +239,8 @@ class GoPro():
         try:
             return self.status_json
         except AttributeError:
-            return None
+            self.update_status()
+            self.get_status_json()
 
     def quit(self, signal, frame):
         if RECORD:
@@ -275,10 +274,13 @@ def ping(host):
 
 if __name__ == '__main__':
     gopro = GoPro(UDP_IP, UDP_PORT)
-    print('present') if gopro.present() else print('not present')
-    gopro.connect()
-    if PREVIEW:
-        gopro.open_stream()
+    if gopro.present():
+        gopro.connect()
+        if PREVIEW:
+            gopro.open_stream()
 
-    while True:
-        gopro.keep_alive()
+        while True:
+            gopro.keep_alive()
+            sleep(__class__.KEEP_ALIVE_PERIOD / 1000)
+    else:
+        print(f'unable to find a GoPro camera @{GOPRO_IP}')

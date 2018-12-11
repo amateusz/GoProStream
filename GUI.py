@@ -1,5 +1,5 @@
 import wx
-
+from GoProStream import GoPro, GOPRO_IP, UDP_PORT
 
 class SettingsPanel(wx.Panel):
     def __init__(self, parent):
@@ -166,5 +166,11 @@ class GoProStreamGUI(wx.App):
 
 
 if __name__ == '__main__':
-    gui = GoProStreamGUI(useBestVisual=True)
-    gui.MainLoop()
+    gopro = GoPro(UDP_IP, UDP_PORT)
+    if gopro.present():
+        gopro.connect()
+        gui = GoProStreamGUI(useBestVisual=True)
+        keep_alive_timer = wx.Timer(gopro)
+        gui.Bind(wx.EVT_TIMER, gopro.keep_alive, keep_alive_timer)
+        gopro.open_stream()
+        gui.MainLoop()
