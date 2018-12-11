@@ -281,6 +281,6 @@ if __name__ == '__main__':
 
         while True:
             gopro.keep_alive()
-            sleep(__class__.KEEP_ALIVE_PERIOD / 1000)
+            sleep(gopro.KEEP_ALIVE_PERIOD / 1000)
     else:
         print(f'unable to find a GoPro camera @{GOPRO_IP}')
