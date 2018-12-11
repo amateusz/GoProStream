@@ -69,13 +69,16 @@ class GoPro():
         self.model_id, self.model_name = self.detect_model()
         self.init_stream()
 
-    def detect_model(self, firmware_string):
+    def detect_model(self, response_raw):
         """
         Tries to determine camera model from firmware string
         :param firmware_string: obtained from JSON from http://10.5.5.9/gp/gpControl endpoint
         :return: a tuple with first few characters of a firmware string. e.g. HD4, HD3.22 and also the nice model name e.g. HERO 6 Session; it's messy. In case of HERO3/+ returns the whole firmware_string for compatibility
         """
-        if not firmware_string:
+        if response_raw:
+            jsondata = json.loads(response_raw)
+            firmware_string = jsondata["info"]["firmware_version"]
+        else:
             try:
                 # original code - response_raw = urllib.request.urlopen('http://10.5.5.9/gp/gpControl').read().decode('utf-8')
                 response_raw = urlopen(f'http://{GOPRO_IP}/gp/gpControl').read().decode('utf-8')
@@ -84,7 +87,7 @@ class GoPro():
             except http.client.BadStatusLine:
                 firmware_string = urlopen(f'http://{GOPRO_IP}/camera/cv').read().decode('utf-8')
 
-        self.model_name = jsondata["info"]["model_name"]
+        model_name = jsondata["info"]["model_name"]
 
         if "Hero3" in firmware_string or "HERO3+" in firmware_string:
             # HERO3 branch
