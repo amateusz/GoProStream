@@ -69,6 +69,26 @@ class GoPro():
         self.model_id, self.model_name = self.detect_model()
         self.init_stream()
 
+    def present(self):
+        """
+
+        :return: Wheather there is a camera on the network
+        """
+
+        # ping it first. then maybe do some advanced tests
+        present = ping(self.IP)
+        if not present:
+            return False
+
+    def avaliable(self):
+        """
+
+        :return: Wheather the camera is accesible, i.e. returns anything meaningful
+        """
+        # some adv tests. check status of the camera
+        return False
+
+
     def detect_model(self, response_raw):
         """
         Tries to determine camera model from firmware string
@@ -213,6 +233,29 @@ class GoPro():
             # stop the shutter when closing
             urlopen(f"http://{GOPRO_IP}/gp/gpControl/command/shutter?p=0").read()
         sys.exit(0)
+
+
+# https://stackoverflow.com/questions/2953462/pinging-servers-in-python
+def ping(host):
+    """
+    Returns True if host (str) responds to a ping request.
+    Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
+    """
+
+    from platform import system as system_name  # Returns the system/OS name
+    from subprocess import call as system_call  # Execute a shell command
+    from os import devnull
+
+    # Ping command count option as function of OS
+    param = '-n' if system_name().lower() == 'windows' else '-c'
+
+    # Building the command. Ex: "ping -c 1 google.com"
+    command = ['ping', param, '1', host]
+
+    # Pinging
+    with open(devnull, "w") as devnull_f:
+        result = system_call(command, stdout=devnull_f)
+    return result == 0
 
 
 if __name__ == '__main__':

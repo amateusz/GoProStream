@@ -42,17 +42,36 @@ class ConnectionPanel(wx.Panel):
         super(__class__, self).__init__(parent)
         sizer = wx.GridSizer(1, 2, 0)
 
-        model_name = 'domkamerka'
-
-        self.label_conn_status = wx.StaticText(self, label=f'{model_name} connected', style=wx.ALIGN_CENTRE)
+        self.label_conn_status = wx.StaticText(self, label='', style=wx.ALIGN_CENTRE)
         self.label_conn_status.SetForegroundColour('#E2007D')
         sizer.Add(self.label_conn_status, wx.ID_ANY, wx.ALIGN_CENTRE)
 
-        button = wx.Button(self, label='Reconnect', )
-        sizer.Add(button, wx.ID_ANY, wx.ALIGN_CENTRE)
+        self.button_reconnect = wx.Button(self, label='Reconnect', id=wx.ID_REFRESH)
+        sizer.Add(self.button_reconnect, wx.ID_ANY, wx.ALIGN_CENTRE | wx.RIGHT | wx.LEFT | wx.GROW, 34)
 
         self.SetSizer(sizer)
         self.Layout()
+
+        self.button_reconnect.Bind(wx.EVT_BUTTON, self.OnReconnectPress)
+
+    def connected(self, state):
+        if state == True:
+            model_name = 'domkamerka'
+            self.label_conn_status.SetLabel(f'{model_name} connected')
+        elif state == False:
+            self.label_conn_status.SetLabel('not connected :C')
+        self.Layout()
+
+    def reconnect(self):
+        self.label_conn_status.SetLabel('…connecting…')
+        self.Layout()
+
+    def OnReconnectPress(self, event):
+        print(f'button pressed {event}')
+        self.button_reconnect.Disable()
+
+        # allow to handle more actions caused by this button press
+        event.Skip()
 
 
 class MainFrame(wx.Frame):
@@ -80,6 +99,25 @@ class MainFrame(wx.Frame):
         self.SetAutoLayout(1)
         # sizer.Fit(self) #
 
+        # Binds
+        self.Bind(wx.EVT_BUTTON, self.reconnect)
+
+    def reconnect(self, event):
+        if event.EventObject is self.panel_connection.button_reconnect or event.Id == wx.ID_REFRESH:
+            # reconnect procedure
+            self.panel_settings.Show(False)
+            self.panel_connection.reconnect()
+
+            # set state → not connected
+            # perform actuall discovery
+
+            # set timeout
+
+    def disconnected(self):
+        # set smuteczek
+        self.panel_settings.Show(False)
+        self.panel_connection.connected(False)
+
 
 class GoProStreamGUI(wx.App):
     def OnInit(self):
@@ -88,6 +126,16 @@ class GoProStreamGUI(wx.App):
         # self.frame.Bind(wx.EVT_CLOSE, self.OnFrameClose)
         # self.frame.Bind(wx.EVT_MOUSEWHEEL, self.OnScrollInFrame)
         # self.frame.Bind(wx.EVT_SLIDER, self.OnSlider)
+
+        # set default state: disconnected
+        self.frame.disconnected()
+
+        # but also trigger auto connection
+        init_event = wx.CommandEvent(wx.wxEVT_COMMAND_BUTTON_CLICKED,
+                                     id=self.frame.panel_connection.button_reconnect.GetId())
+        init_event.SetEventObject(self.frame.panel_connection.button_reconnect)
+
+        wx.PostEvent(self.frame.panel_connection.button_reconnect, init_event)
 
         return True
 
