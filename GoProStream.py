@@ -23,6 +23,7 @@ import socket
 # try:
 # For Python 3.0 and later
 from urllib.request import urlopen
+import urllib
 # except ImportError:
 # Fall back to Python 2's urllib2
 # from urllib2 import urlopen
@@ -35,7 +36,7 @@ import re
 import http
 
 # GOPRO_IP = '10.5.5.9'
-GOPRO_IP = 'baadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
+GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
 
 UDP_IP = GOPRO_IP
 UDP_PORT = 8554
@@ -66,7 +67,13 @@ class GoPro():
         self.IP, self.UDP_port = (ip, udp_port)
         self.setup_keepalive()
 
+    def connect(self):
+        """
+        setup all IP/netowrk/connection related things. better call this after checking for presence
+        :return:
+        """
         self.UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.wake_on_lan()
         self.model_id, self.model_name = self.detect_model()
         self.init_stream()
 
@@ -77,9 +84,14 @@ class GoPro():
         """
 
         # ping it first. then maybe do some advanced tests
-        present = ping(self.IP)
-        if not present:
-            return False
+        present = False and ping(self.IP)
+        if present:
+            return True
+        else:
+            # try something different
+            if self.update_status():
+                return True
+        return False
 
     def avaliable(self):
         """
@@ -139,10 +151,9 @@ class GoPro():
                 f"ffmpeg -i 'udp://@:{UDP_PORT}' -fflags nobuffer -f:v mpegts -probesize 8192 " + TS_PARAMS + SAVELOCATION,
                 shell=True)
         else:
-            if PREVIEW:
-                subprocess.Popen(
-                    f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
-                    shell=True)
+            subprocess.Popen(
+                f"ffplay {loglevel_verbose} -fflags nobuffer -f:v mpegts -probesize 8192 udp://@:{UDP_PORT}",
+                shell=True)
             '''
             the meaning of above `@` is as explained in https://superuser.com/questions/870831/what-does-the-at-symbol-with-ips-mean-in-ffmpeg-and-vlc
             It turns of our UDP is multicast..or unicast, therefore where udp://x@y:8554 y makes no difference. x is our IP, most likely 10.5.5.100
@@ -221,9 +232,9 @@ class GoPro():
         send_data = bytes.fromhex(data)
 
         # Broadcast to lan
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.sendto(send_data, (GOPRO_IP, 9))
+
+        self.UDP_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.UDP_socket.sendto(send_data, (GOPRO_IP, 9))
 
     def update_status(self):
         try:
@@ -272,9 +283,12 @@ def ping(host):
 
 
 if __name__ == '__main__':
-
     gopro = GoPro(UDP_IP, UDP_PORT)
-    gopro.wake_on_lan()
-    gopro.open_stream()
+    print('present') if gopro.present() else print('not present')
+    print('avail') if gopro.avaliable() else print('not avail')
+    gopro.connect()
+    if PREVIEW:
+        gopro.open_stream()
+
     while True:
         gopro.keep_alive()
