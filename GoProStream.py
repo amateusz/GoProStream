@@ -34,8 +34,8 @@ import json
 import re
 import http
 
-GOPRO_IP = '10.5.5.9'
-# GOPRO_IP = 'aadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
+# GOPRO_IP = '10.5.5.9'
+GOPRO_IP = 'baadbcd9c-66c2-477d-a652-0f9810819317.mock.pstmn.io'
 
 UDP_IP = GOPRO_IP
 UDP_PORT = 8554
@@ -65,6 +65,7 @@ class GoPro():
 
         self.IP, self.UDP_port = (ip, udp_port)
         self.setup_keepalive()
+
         self.UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.model_id, self.model_name = self.detect_model()
         self.init_stream()
@@ -88,8 +89,7 @@ class GoPro():
         # some adv tests. check status of the camera
         return False
 
-
-    def detect_model(self, response_raw):
+    def detect_model(self, response_raw=None):
         """
         Tries to determine camera model from firmware string
         :param firmware_string: obtained from JSON from http://10.5.5.9/gp/gpControl endpoint
@@ -170,11 +170,8 @@ class GoPro():
             if "HX" in self.model_id:
                 connectedStatus = False
                 while connectedStatus == False:
-                    req = urlopen(f"http://{GOPRO_IP}/gp/gpControl/status")
-                    data = req.read()
-                    encoding = req.info().get_content_charset('utf-8')
-                    json_data = json.loads(data.decode(encoding))
-                    if json_data["status"]["31"] >= 1:
+                    self.update_status()
+                    if self.get_status_json()["status"]["31"] >= 1:
                         connectedStatus = True
 
         else:
@@ -228,6 +225,22 @@ class GoPro():
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.sendto(send_data, (GOPRO_IP, 9))
 
+    def update_status(self):
+        try:
+            req = urlopen(f"http://{GOPRO_IP}/gp/gpControl/status")
+            data = req.read()
+            encoding = req.info().get_content_charset('utf-8')
+            self.status_json = json.loads(data.decode(encoding))
+            return True
+        except:
+            return False
+
+    def get_status_json(self):
+        try:
+            return self.status_json
+        except AttributeError:
+            return None
+
     def quit(self, signal, frame):
         if RECORD:
             # stop the shutter when closing
@@ -259,6 +272,7 @@ def ping(host):
 
 
 if __name__ == '__main__':
+
     gopro = GoPro(UDP_IP, UDP_PORT)
     gopro.wake_on_lan()
     gopro.open_stream()
