@@ -23,7 +23,6 @@ import socket
 # try:
 # For Python 3.0 and later
 from urllib.request import urlopen
-import urllib
 # except ImportError:
 # Fall back to Python 2's urllib2
 # from urllib2 import urlopen
@@ -91,14 +90,6 @@ class GoPro():
             # try something different
             if self.update_status():
                 return True
-        return False
-
-    def avaliable(self):
-        """
-
-        :return: Wheather the camera is accesible, i.e. returns anything meaningful
-        """
-        # some adv tests. check status of the camera
         return False
 
     def detect_model(self, response_raw=None):
@@ -285,7 +276,6 @@ def ping(host):
 if __name__ == '__main__':
     gopro = GoPro(UDP_IP, UDP_PORT)
     print('present') if gopro.present() else print('not present')
-    print('avail') if gopro.avaliable() else print('not avail')
     gopro.connect()
     if PREVIEW:
         gopro.open_stream()
